@@ -10,9 +10,6 @@ conn = sqlite3.connect('example.db')
 conn.enable_load_extension(True)
 sqlite_vec.load(conn)
 conn.enable_load_extension(False)
-# sqlite-vecの拡張を読み込む（ファイル名は環境に合わせて）
-# conn.load_extension("./sqlite_vec.so")  # Mac/Linux
-# conn.load_extension("vec0.dll")  # Windows
 
 cursor = conn.cursor()
 
@@ -120,25 +117,5 @@ cursor.execute('''
     FOREIGN KEY (lost_person) REFERENCES users(id) ON DELETE CASCADE
     )
 ''')
-
-# cursor.execute("INSERT INTO clip (name, embedding) VALUES (?, vector(?))",
-#                ("apple", "[0.1, 0.2, 0.3]"))
-# cursor.execute("INSERT INTO clip (name, embedding) VALUES (?, vector(?))",
-#                ("orange", "[0.3, 0.2, 0.1]"))
-
-
-# conn.commit()
-
-# query = "[0.1, 0.2, 0.3]"
-
-# cursor.execute("""
-# SELECT name, cosine_distance(embedding, vector(?)) AS similarity
-# FROM items
-# ORDER BY similarity ASC
-# LIMIT 5
-# """, (query,))
-
-# for row in cursor.fetchall():
-#     print(row)
 
 conn.close()
