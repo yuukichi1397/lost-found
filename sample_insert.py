@@ -30,10 +30,10 @@ cursor.execute("INSERT INTO vec_lost (rowid, embedding) VALUES (?, ?)", (1, vec1
 
 # 5. lost
 cursor.execute('''
-    INSERT INTO lost (type, feature, capture_place, manager, manage_group,
+    INSERT INTO lost (type, feature, capture_date, capture_place, manager, manage_group,
                       return_flag, picture_path, return_person, vector)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-''', ("傘", "青い折りたたみ", "135,47", 1, 1, 0, "images/umbrella.jpg", None, 1))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+''', ("傘", "青い折りたたみ", "2025-07-09", "135,47", 1, 1, 0, "images/umbrella.jpg", None, 1))
 
 # 6. vec_search
 vec2 = serialize_f32([0.1, 0.25, 0.35, 0.45])

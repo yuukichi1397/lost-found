@@ -68,6 +68,7 @@ cursor.execute("CREATE VIRTUAL TABLE vec_search USING vec0(embedding float[4])")
 # id プライマリキー
 # type 落とし物の種類
 # feature 落とし物の特記事項
+# capture_date 落とし物を拾った日付
 # capture_place 落とし物があった場所
 # manager 管理者のid(外部キー)
 # manage_group 管理しているグループのid(外部キー)
@@ -82,6 +83,7 @@ cursor.execute('''
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
     feature TEXT,
+    capture_date TEXT,
     capture_place TEXT,
     manager INTEGER,
     manage_group INTEGER,
