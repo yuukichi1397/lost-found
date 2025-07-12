@@ -50,6 +50,9 @@ class Group(BaseModel):
     invitation_key: str
     address: Optional[str] = None
 
+class JoinGroupRequest(BaseModel):
+    invitation_key: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -203,6 +206,37 @@ def create_group(group: GroupCreate, current_user: User = Depends(get_current_us
             group_name=group.group_name,
             invitation_key=invitation_key,
             address=group.address
+        )
+    except sqlite3.Error as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+@app.post("/groups/join", response_model=Group)
+def join_group(join_request: JoinGroupRequest, current_user: User = Depends(get_current_user)):
+    conn = get_db_connection()
+    try:
+        # Find the group by invitation key
+        group = conn.execute('SELECT * FROM groups WHERE invitation_key = ?', (join_request.invitation_key,)).fetchone()
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found with this invitation key")
+
+        # Check if user is already a member of this group
+        existing_membership = conn.execute('SELECT * FROM user_groups WHERE user_id = ? AND group_id = ?',
+                                            (current_user.id, group['group_id'])).fetchone()
+        if existing_membership:
+            raise HTTPException(status_code=400, detail="User is already a member of this group")
+
+        # Add user to the group
+        conn.execute('INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)',
+                     (current_user.id, group['group_id']))
+        conn.commit()
+        conn.close()
+
+        return Group(
+            group_id=group['group_id'],
+            group_name=group['group_name'],
+            invitation_key=group['invitation_key'],
+            address=group['address']
         )
     except sqlite3.Error as e:
         conn.close()

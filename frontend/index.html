@@ -50,6 +50,14 @@
             <input type="text" id="groupAddress" placeholder="Address (optional)">
             <button type="submit">Create Group</button>
         </form>
+
+        <hr>
+
+        <h2>Join a Group</h2>
+        <form id="joinGroupForm">
+            <input type="text" id="invitationKey" placeholder="Invitation Key" required>
+            <button type="submit">Join Group</button>
+        </form>
     </div>
 
     <h2>API Response</h2>
@@ -169,6 +177,34 @@
                 if (!response.ok) throw new Error(data.detail || 'Failed to create group');
             } catch (error) {
                 console.error('Create Group Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Join Group ---
+        document.getElementById('joinGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to join a group.';
+                return;
+            }
+
+            const invitationKey = document.getElementById('invitationKey').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ invitation_key: invitationKey })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to join group');
+            } catch (error) {
+                console.error('Join Group Error:', error);
                 responseArea.textContent = `Error: ${error.message}`;
             }
         });
