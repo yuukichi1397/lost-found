@@ -38,9 +38,18 @@
     </div>
 
     <div id="user-section" style="display: none;">
-        <h2>Get Your User Info</h2>
+        <h2>User Actions</h2>
         <button id="getMeButton">Get My Info</button>
         <button id="logoutButton">Logout</button>
+        
+        <hr>
+
+        <h2>Create a New Group</h2>
+        <form id="createGroupForm">
+            <input type="text" id="groupName" placeholder="Group Name" required>
+            <input type="text" id="groupAddress" placeholder="Address (optional)">
+            <button type="submit">Create Group</button>
+        </form>
     </div>
 
     <h2>API Response</h2>
@@ -131,6 +140,35 @@
                 fetchUserInfo();
             } catch (error) {
                 console.error('Login Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Create Group ---
+        document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to create a group.';
+                return;
+            }
+
+            const groupName = document.getElementById('groupName').value;
+            const address = document.getElementById('groupAddress').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ group_name: groupName, address: address })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to create group');
+            } catch (error) {
+                console.error('Create Group Error:', error);
                 responseArea.textContent = `Error: ${error.message}`;
             }
         });
