@@ -41,6 +41,7 @@
         <h2>User Actions</h2>
         <button id="getMeButton">Get My Info</button>
         <button id="logoutButton">Logout</button>
+        <button id="getMyGroupsButton">Get My Groups</button>
         
         <hr>
 
@@ -205,6 +206,27 @@
                 if (!response.ok) throw new Error(data.detail || 'Failed to join group');
             } catch (error) {
                 console.error('Join Group Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Get My Groups ---
+        document.getElementById('getMyGroupsButton').addEventListener('click', async () => {
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to view your groups.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/my`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to fetch groups');
+            } catch (error) {
+                console.error('Get My Groups Error:', error);
                 responseArea.textContent = `Error: ${error.message}`;
             }
         });

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 # --- 設定 ---
 DATABASE = 'users.db'
@@ -59,6 +59,19 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+# New models for group listing
+class UserInGroup(BaseModel):
+    id: int
+    username: str
+    phone_number: Optional[str] = None
+
+class GroupWithMembers(BaseModel):
+    group_id: int
+    group_name: str
+    invitation_key: str
+    address: Optional[str] = None
+    members: List[UserInGroup]
 
 # --- データベース関連 ---
 def get_db_connection():
@@ -238,6 +251,51 @@ def join_group(join_request: JoinGroupRequest, current_user: User = Depends(get_
             invitation_key=group['invitation_key'],
             address=group['address']
         )
+    except sqlite3.Error as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+@app.get("/groups/my", response_model=List[GroupWithMembers])
+def get_my_groups(current_user: User = Depends(get_current_user)):
+    conn = get_db_connection()
+    my_groups = []
+    try:
+        # Get all group_ids the current user belongs to
+        user_group_memberships = conn.execute('SELECT group_id FROM user_groups WHERE user_id = ?',
+                                                (current_user.id,)).fetchall()
+        
+        for membership in user_group_memberships:
+            group_id = membership['group_id']
+            
+            # Get group details
+            group_details = conn.execute('SELECT * FROM groups WHERE group_id = ?', (group_id,)).fetchone()
+            if not group_details: # Should not happen if data integrity is maintained
+                continue
+
+            # Get all members of this group
+            group_members = []
+            member_ids = conn.execute('SELECT user_id FROM user_groups WHERE group_id = ?', (group_id,)).fetchall()
+            for member_id_row in member_ids:
+                member_user_id = member_id_row['user_id']
+                member_details = conn.execute('SELECT id, username, phone_number FROM users WHERE id = ?',
+                                                (member_user_id,)).fetchone()
+                if member_details:
+                    group_members.append(UserInGroup(
+                        id=member_details['id'],
+                        username=member_details['username'],
+                        phone_number=member_details['phone_number']
+                    ))
+            
+            my_groups.append(GroupWithMembers(
+                group_id=group_details['group_id'],
+                group_name=group_details['group_name'],
+                invitation_key=group_details['invitation_key'],
+                address=group_details['address'],
+                members=group_members
+            ))
+        
+        conn.close()
+        return my_groups
     except sqlite3.Error as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
