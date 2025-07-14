@@ -125,6 +125,13 @@
                 const data = await response.json();
                 responseArea.textContent = JSON.stringify(data, null, 2);
                 if (!response.ok) throw new Error(data.detail || 'Signup failed');
+
+                // Automatically log in after successful signup
+                accessToken = data.access_token;
+                localStorage.setItem('accessToken', accessToken);
+                updateUI();
+                fetchUserInfo();
+
             } catch (error) {
                 console.error('Signup Error:', error);
                 responseArea.textContent = `Error: ${error.message}`;

@@ -163,7 +163,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return User(id=user['id'], username=user['username'], phone_number=user['phone_number'])
 
 # --- APIエンドポイント ---
-@app.post("/signup/", response_model=User)
+@app.post("/signup/", response_model=Token)
 def create_user(user: UserCreate):
     conn = get_db_connection()
     try:
@@ -176,11 +176,25 @@ def create_user(user: UserCreate):
                               (user.username, hashed_password, user.phone_number))
         conn.commit()
         new_user_id = cursor.lastrowid
+        
+        # Retrieve the newly created user to get their username for token creation
+        newly_created_user = conn.execute('SELECT * FROM users WHERE id = ?', (new_user_id,)).fetchone()
         conn.close()
-        return User(id=new_user_id, username=user.username, phone_number=user.phone_number)
+
+        if not newly_created_user:
+            raise HTTPException(status_code=500, detail="User creation failed unexpectedly")
+
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": newly_created_user['username']}, expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(status_code=400, detail="Username already registered")
+    except sqlite3.Error as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
 @app.post("/login", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
