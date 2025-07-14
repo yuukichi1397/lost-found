@@ -49,9 +49,14 @@ class Group(BaseModel):
     group_name: str
     invitation_key: str
     address: Optional[str] = None
+    creator_id: int # Added creator_id
 
 class JoinGroupRequest(BaseModel):
     invitation_key: str
+
+class RemoveMemberRequest(BaseModel):
+    group_id: int
+    user_id_to_remove: int
 
 class Token(BaseModel):
     access_token: str
@@ -71,6 +76,7 @@ class GroupWithMembers(BaseModel):
     group_name: str
     invitation_key: str
     address: Optional[str] = None
+    creator_id: int # Added creator_id
     members: List[UserInGroup]
 
 # --- データベース関連 ---
@@ -95,7 +101,9 @@ def create_tables():
             group_id INTEGER PRIMARY KEY AUTOINCREMENT,
             group_name TEXT NOT NULL,
             invitation_key TEXT NOT NULL UNIQUE,
-            address TEXT
+            address TEXT,
+            creator_id INTEGER NOT NULL, -- Added creator_id
+            FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
         )
     """)
     conn.execute("""
@@ -203,8 +211,8 @@ def create_group(group: GroupCreate, current_user: User = Depends(get_current_us
     conn = get_db_connection()
     try:
         # Create the group
-        cursor = conn.execute("INSERT INTO groups (group_name, invitation_key, address) VALUES (?, ?, ?)",
-                              (group.group_name, invitation_key, group.address))
+        cursor = conn.execute("INSERT INTO groups (group_name, invitation_key, address, creator_id) VALUES (?, ?, ?, ?)",
+                              (group.group_name, invitation_key, group.address, current_user.id))
         new_group_id = cursor.lastrowid
 
         # Add the creator to the group
@@ -218,7 +226,8 @@ def create_group(group: GroupCreate, current_user: User = Depends(get_current_us
             group_id=new_group_id,
             group_name=group.group_name,
             invitation_key=invitation_key,
-            address=group.address
+            address=group.address,
+            creator_id=current_user.id
         )
     except sqlite3.Error as e:
         conn.close()
@@ -249,7 +258,8 @@ def join_group(join_request: JoinGroupRequest, current_user: User = Depends(get_
             group_id=group['group_id'],
             group_name=group['group_name'],
             invitation_key=group['invitation_key'],
-            address=group['address']
+            address=group['address'],
+            creator_id=group['creator_id']
         )
     except sqlite3.Error as e:
         conn.close()
@@ -291,11 +301,41 @@ def get_my_groups(current_user: User = Depends(get_current_user)):
                 group_name=group_details['group_name'],
                 invitation_key=group_details['invitation_key'],
                 address=group_details['address'],
+                creator_id=group_details['creator_id'],
                 members=group_members
             ))
         
         conn.close()
         return my_groups
+    except sqlite3.Error as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+@app.post("/groups/remove_member", response_model=dict)
+def remove_member_from_group(request: RemoveMemberRequest, current_user: User = Depends(get_current_user)):
+    conn = get_db_connection()
+    try:
+        group = conn.execute('SELECT * FROM groups WHERE group_id = ?', (request.group_id,)).fetchone()
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+
+        # Authorization check
+        if current_user.id != request.user_id_to_remove and current_user.id != group['creator_id']:
+            raise HTTPException(status_code=403, detail="Not authorized to remove this member")
+
+        # Check if the user to remove is actually in the group
+        existing_membership = conn.execute('SELECT * FROM user_groups WHERE user_id = ? AND group_id = ?',
+                                            (request.user_id_to_remove, request.group_id)).fetchone()
+        if not existing_membership:
+            raise HTTPException(status_code=404, detail="User is not a member of this group")
+
+        # Remove the member
+        conn.execute('DELETE FROM user_groups WHERE user_id = ? AND group_id = ?',
+                     (request.user_id_to_remove, request.group_id))
+        conn.commit()
+        conn.close()
+
+        return {"message": "Member removed successfully"}
     except sqlite3.Error as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
