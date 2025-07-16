@@ -85,3 +85,42 @@ def update_lost_item(data: UpdateLostItem) -> Dict:
 
     # fastapiではdictを勝手にjsonに変換するらしいため、row → dict に変換する
     return dict(row)
+
+
+# user_idを入力するとusersテーブルのレコードを返すAPI
+@app.get("/{user_id}/get_user")
+def get_user_data(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    # 管理者が所属するグループを取得
+    cursor.execute("""
+        SELECT * FROM users WHERE id = ?
+    """, (user_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+    if rows is None:
+        raise HTTPException(status_code=404, detail="指定されたIDのレコードが存在しません")
+
+    return [dict(row) for row in rows]
+
+# group_idを入力するとgroupsテーブルのレコードを返すAPI
+@app.get("/{group_id}/get_group")
+def get_user_data(group_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM groups WHERE id = ?
+    """, (group_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+    if rows is None:
+        raise HTTPException(status_code=404, detail="指定されたIDのレコードが存在しません")
+
+    return [dict(row) for row in rows]
