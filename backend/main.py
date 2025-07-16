@@ -86,6 +86,8 @@ def get_db_connection():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~ ← DBが作られている場合は消してもいい
+
 def create_tables():
     conn = get_db_connection()
     conn.execute("""
@@ -121,6 +123,8 @@ def create_tables():
 @app.on_event("startup")
 def startup_event():
     create_tables()
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~ ← ここまで
 
 # --- 認証関連のヘルパー関数 ---
 def verify_password(plain_password, hashed_password):
@@ -353,7 +357,3 @@ def remove_member_from_group(request: RemoveMemberRequest, current_user: User = 
     except sqlite3.Error as e:
         conn.close()
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
