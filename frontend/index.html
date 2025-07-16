@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: auto; }
+        h1, h2 { border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+        form { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        input { display: block; margin-bottom: 10px; padding: 8px; width: 250px; }
+        button { padding: 10px 15px; cursor: pointer; margin-right: 10px; }
+        pre { background-color: #f4f4f4; padding: 15px; border: 1px solid #ddd; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+        #status { padding: 10px; background-color: #eef; border: 1px solid #cce; border-radius: 5px; margin-bottom: 20px; }
+        .group-item { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        .member-item { margin-left: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>JWT Authentication with FastAPI</h1>
+
+    <div id="status">Not logged in.</div>
+
+    <div id="auth-section">
+        <h2>Sign Up</h2>
+        <form id="signupForm">
+            <input type="text" id="signupUsername" placeholder="Username" required>
+            <input type="password" id="signupPassword" placeholder="Password" required>
+            <input type="text" id="signupPhoneNumber" placeholder="Phone Number (optional)">
+            <button type="submit">Sign Up</button>
+        </form>
+
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Username" required>
+            <input type="password" id="loginPassword" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <div id="user-section" style="display: none;">
+        <h2>User Actions</h2>
+        <button id="getMeButton">Get My Info</button>
+        <button id="logoutButton">Logout</button>
+        <button id="getMyGroupsButton">Get My Groups</button>
+        
+        <hr>
+
+        <h2>Create a New Group</h2>
+        <form id="createGroupForm">
+            <input type="text" id="groupName" placeholder="Group Name" required>
+            <input type="text" id="groupAddress" placeholder="Address (optional)">
+            <button type="submit">Create Group</button>
+        </form>
+
+        <hr>
+
+        <h2>Join a Group</h2>
+        <form id="joinGroupForm">
+            <input type="text" id="invitationKey" placeholder="Invitation Key" required>
+            <button type="submit">Join Group</button>
+        </form>
+    </div>
+
+    <h2>API Response</h2>
+    <pre id="response">Response will be shown here...</pre>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let accessToken = null;
+        let currentUserId = null; // To store the current logged-in user's ID
+
+        const responseArea = document.getElementById('response');
+        const statusArea = document.getElementById('status');
+        const authSection = document.getElementById('auth-section');
+        const userSection = document.getElementById('user-section');
+
+        // --- UI Update Function ---
+        const updateUI = () => {
+            if (accessToken) {
+                authSection.style.display = 'none';
+                userSection.style.display = 'block';
+            } else {
+                statusArea.textContent = 'Not logged in.';
+                authSection.style.display = 'block';
+                userSection.style.display = 'none';
+            }
+        };
+
+        // --- Fetch User Info (and update status) ---
+        const fetchUserInfo = async () => {
+            if (!accessToken) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/users/me/`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Could not fetch user info');
+                
+                statusArea.textContent = `Logged in as: ${data.username}`;
+                currentUserId = data.id; // Store current user's ID
+                responseArea.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Fetch User Info Error:', error);
+                responseArea.textContent = `Error: ${error.message}. Your session might have expired.`
+                logout(); // Log out if token is invalid
+            }
+        };
+
+        // --- Sign Up --- 
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('signupUsername').value;
+            const password = document.getElementById('signupPassword').value;
+            const phoneNumber = document.getElementById('signupPhoneNumber').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/signup/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, phone_number: phoneNumber })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Signup failed');
+
+                // Automatically log in after successful signup
+                accessToken = data.access_token;
+                localStorage.setItem('accessToken', accessToken);
+                updateUI();
+                fetchUserInfo();
+
+            } catch (error) {
+                console.error('Signup Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Login --- 
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const formData = new URLSearchParams({ username, password });
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Login failed');
+
+                accessToken = data.access_token;
+                localStorage.setItem('accessToken', accessToken);
+                updateUI();
+                fetchUserInfo();
+            } catch (error) {
+                console.error('Login Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Create Group ---
+        document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to create a group.';
+                return;
+            }
+
+            const groupName = document.getElementById('groupName').value;
+            const address = document.getElementById('groupAddress').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ group_name: groupName, address: address })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to create group');
+            } catch (error) {
+                console.error('Create Group Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Join Group ---
+        document.getElementById('joinGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to join a group.';
+                return;
+            }
+
+            const invitationKey = document.getElementById('invitationKey').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ invitation_key: invitationKey })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to join group');
+            } catch (error) {
+                console.error('Join Group Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Get My Groups ---
+        document.getElementById('getMyGroupsButton').addEventListener('click', async () => {
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to view your groups.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/my`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Failed to fetch groups');
+                
+                // Display groups in a more readable format
+                let html = '<h3>Your Groups:</h3>';
+                if (data.length === 0) {
+                    html += '<p>You are not a member of any groups yet.</p>';
+                } else {
+                    data.forEach(group => {
+                        html += `<div class="group-item">
+                                    <h4>Group: ${group.group_name} (ID: ${group.group_id})</h4>
+                                    <p>Invitation Key: ${group.invitation_key}</p>
+                                    <p>Address: ${group.address || 'N/A'}</p>
+                                    <p>Creator ID: ${group.creator_id}</p>
+                                    <h5>Members:</h5>
+                                    <ul>`;
+                        group.members.forEach(member => {
+                            html += `<li class="member-item">
+                                        ${member.username} (ID: ${member.id}, Phone: ${member.phone_number || 'N/A'})
+                                        <button class="remove-member-btn" data-group-id="${group.group_id}" data-user-id="${member.id}">Remove</button>
+                                    </li>`;
+                        });
+                        html += `</ul></div>`;
+                    });
+                }
+                responseArea.innerHTML = html;
+
+                // Attach event listeners to new remove buttons
+                document.querySelectorAll('.remove-member-btn').forEach(button => {
+                    button.addEventListener('click', handleRemoveMember);
+                });
+
+            } catch (error) {
+                console.error('Get My Groups Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // --- Handle Remove Member ---
+        const handleRemoveMember = async (event) => {
+            const groupId = event.target.dataset.groupId;
+            const userIdToRemove = event.target.dataset.userId;
+
+            if (!accessToken) {
+                responseArea.textContent = 'You need to be logged in to remove members.';
+                return;
+            }
+
+            // Confirm with user if they are removing themselves
+            if (parseInt(userIdToRemove) === currentUserId) {
+                if (!confirm('Are you sure you want to leave this group?')) {
+                    return;
+                }
+            } else {
+                if (!confirm(`Are you sure you want to remove user ID ${userIdToRemove} from group ID ${groupId}?`)) {
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/groups/remove_member`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ group_id: parseInt(groupId), user_id_to_remove: parseInt(userIdToRemove) })
+                });
+                const data = await response.json();
+                responseArea.textContent = JSON.stringify(data, null, 2);
+                if (!response.ok) throw new Error(data.detail || 'Failed to remove member');
+
+                // Refresh group list after successful removal
+                document.getElementById('getMyGroupsButton').click();
+
+            } catch (error) {
+                console.error('Remove Member Error:', error);
+                responseArea.textContent = `Error: ${error.message}`;
+            }
+        };
+
+        // --- Get User Info Button ---
+        document.getElementById('getMeButton').addEventListener('click', fetchUserInfo);
+
+        // --- Logout ---
+        const logout = () => {
+            accessToken = null;
+            localStorage.removeItem('accessToken');
+            updateUI();
+            responseArea.textContent = 'You have been logged out.';
+        };
+        document.getElementById('logoutButton').addEventListener('click', logout);
+
+        // --- Initial Load ---
+        const loadToken = () => {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                accessToken = token;
+                updateUI();
+                fetchUserInfo();
+            }
+        };
+
+        loadToken(); // Check for token on page load
+
+    </script>
+
+</body>
+</html>
