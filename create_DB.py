@@ -32,12 +32,14 @@ cursor.execute('''
 # name グループ名
 # passkey 自動生成されるパスキー
 # place 保管場所
+# telenum 電話番号
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS groups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         passkey TEXT,
-        place TEXT
+        place TEXT,
+        telenum TEXT
     )
 ''')
 
@@ -55,10 +57,10 @@ cursor.execute('''
 ''')
 
 # 落とし物DB用ベクトルテーブル作成
-cursor.execute("CREATE VIRTUAL TABLE vec_lost USING vec0(embedding float[4])")
+cursor.execute("CREATE VIRTUAL TABLE vec_lost USING vec0(embedding float[512])")
 
 # 探し物DB用ベクトルテーブル作成
-cursor.execute("CREATE VIRTUAL TABLE vec_search USING vec0(embedding float[4])")
+cursor.execute("CREATE VIRTUAL TABLE vec_category USING vec0(type TEXT NOT NULL, embedding float[512])")
 
 # ベクトルDBというライブラリを使う都合上、
 # 落とし物DB用ベクトルテーブルと探し物DB用ベクトルテーブルは分けることにしました
@@ -66,8 +68,6 @@ cursor.execute("CREATE VIRTUAL TABLE vec_search USING vec0(embedding float[4])")
 
 # 落とし物テーブル作成
 # id プライマリキー
-# type 落とし物の種類
-# feature 落とし物の特記事項
 # capture_date 落とし物を拾った日付
 # capture_place 落とし物があった場所
 # manager 管理者のid(外部キー)
@@ -76,13 +76,9 @@ cursor.execute("CREATE VIRTUAL TABLE vec_search USING vec0(embedding float[4])")
 # picture_path 写真のファイルパス
 # return_person 受け渡した人のid(外部キー)
 # vector 落とし物DB用ベクトルテーブルのid
-
-
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS lost (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL,
-    feature TEXT,
     capture_date TEXT,
     capture_place TEXT,
     manager INTEGER,
@@ -97,6 +93,19 @@ cursor.execute('''
     )
 ''')
 
+# 返却依頼用テーブル作成
+# user_id ユーザidの外部キー
+# lost_item_id 落とし物idの外部キー
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS receipt_request (
+    user_id INTEGER NOT NULL,
+    lost_item_id INTEGER NOT NULL,
+    PRIMARY KEY (user_id, lost_item_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (lost_item_id) REFERENCES lost(id) ON DELETE CASCADE
+    )
+''')
+
 # 探し物テーブル作成
 # id プライマリキー
 # type 落とし物の種類
@@ -104,7 +113,6 @@ cursor.execute('''
 # lost_place 落とした場所
 # lost_person 落とした人のid(外部キー)
 # return_flag 受け渡しフラグ(0→返してない、1→返した)
-# picture_path 写真のファイルパス
 # vector 落とし物DB用ベクトルテーブルのid
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS search (
@@ -114,7 +122,6 @@ cursor.execute('''
     lost_place TEXT,
     lost_person INTEGER,
     return_flag INTEGER,
-    picture_path TEXT,
     vector INTEGER,
     FOREIGN KEY (lost_person) REFERENCES users(id) ON DELETE CASCADE
     )
